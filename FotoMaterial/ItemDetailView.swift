@@ -30,6 +30,7 @@ struct ItemDetailView: View {
     @State private var translationTrigger = 0
     @State private var translationError: String?
     @State private var isTranslating = false
+    @State private var translationRetryCount = 0
 
     var body: some View {
         ScrollView {
@@ -171,11 +172,25 @@ struct ItemDetailView: View {
                             }
                             try? modelContext.save()
                             isTranslating = false
+                            translationRetryCount = 0
                         }
                     } catch {
                         await MainActor.run {
-                            translationError = error.localizedDescription
-                            isTranslating = false
+                            // Apple Translation no soporta pares no-inglés↔no-inglés
+                            // (p.ej. es→ca). Primer fallo: reintentar con inglés como
+                            // fuente pivote. Segundo fallo: mostrar el error al usuario.
+                            if translationRetryCount == 0 {
+                                translationRetryCount = 1
+                                translationConfig = TranslationSession.Configuration(
+                                    source: Locale.Language(identifier: "en"),
+                                    target: Locale.Language(identifier: translatingTo)
+                                )
+                                translationTrigger += 1
+                            } else {
+                                translationRetryCount = 0
+                                translationError = error.localizedDescription
+                                isTranslating = false
+                            }
                         }
                     }
                 }
@@ -451,6 +466,7 @@ struct ItemDetailView: View {
     private func translateButton(lang: String, label: String) -> some View {
         Button {
             translatingTo = lang
+            translationRetryCount = 0
             translationConfig = TranslationSession.Configuration(
                 source: detectedSourceLanguage(),
                 target: Locale.Language(identifier: lang)
