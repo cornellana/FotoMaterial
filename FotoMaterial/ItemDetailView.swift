@@ -30,7 +30,13 @@ struct ItemDetailView: View {
     @State private var showTranslationSheet = false
     @State private var translationError: String?
     @State private var isTranslating = false
-    @State private var translationRetryCount = 0
+    // true cuando translationTask ya llamó al closure; detecta el caso Code=19 donde
+    // el framework falla en la sesión y nunca invoca el closure.
+    @State private var translationTaskFired = false
+    // Error pendiente a mostrar en onDismiss, una vez el sheet esté completamente cerrado.
+    // Evita el conflicto "already presenting" si se muestra el alert durante la animación
+    // de cierre del sheet.
+    @State private var pendingTranslationError: String?
 
     var body: some View {
         ScrollView {
@@ -150,18 +156,50 @@ struct ItemDetailView: View {
                 selectedFacturaItem = nil
             }
         }
-        // Sheet invisible que aloja translationTask. Cada presentación del sheet crea
-        // una vista fresca → translationTask siempre se dispara en "view appears".
-        // Esto es más fiable que el truco .id() porque el sheet ES una presentación
-        // genuina de SwiftUI, no una recreación interna dentro del mismo árbol.
-        .sheet(isPresented: $showTranslationSheet) {
+        // Sheet invisible para translationTask. Cada presentación crea una vista fresca
+        // → translationTask siempre se dispara al aparecer.
+        // onDismiss garantiza reset de estado en cualquier cierre, incluido el timeout.
+        // onDismiss: punto seguro para mostrar el error. El sheet ya ha terminado su
+        // animación de cierre, por lo que no hay conflicto "already presenting" con el alert.
+        .sheet(isPresented: $showTranslationSheet, onDismiss: {
+            isTranslating = false
+            translationTaskFired = false
+            if let err = pendingTranslationError {
+                translationError = err
+                pendingTranslationError = nil
+            }
+        }) {
             Color.clear
                 .presentationDetents([.height(1)])
                 .presentationDragIndicator(.hidden)
                 .presentationBackground(.clear)
                 .interactiveDismissDisabled(true)
+                .onAppear {
+                    // Cuando el idioma destino no está disponible (Code=19), el framework
+                    // falla al crear la sesión y nunca llama al closure. Sin este timeout
+                    // el sheet quedaría abierto indefinidamente. translationTaskFired evita
+                    // falsos positivos cuando el closure sí corrió (p.ej. modelo descargando).
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 3_000_000_000)
+                        guard showTranslationSheet && !translationTaskFired else { return }
+                        // El framework no pudo crear la sesión (Code=19): el idioma no
+                        // está en el catálogo de Apple Translation para esta versión de iOS.
+                        // No hay ajuste de usuario que pueda solucionarlo.
+                        let langName = locale.t("translate.\(translatingTo)")
+                        switch locale.language {
+                        case "ca":
+                            pendingTranslationError = "La traducció al \(langName) no és compatible amb Apple Translation en aquesta versió d'iOS."
+                        case "en":
+                            pendingTranslationError = "Translation to \(langName) is not supported by Apple Translation in this iOS version."
+                        default:
+                            pendingTranslationError = "La traducción al \(langName) no es compatible con Apple Translation en esta versión de iOS."
+                        }
+                        showTranslationSheet = false
+                        // onDismiss recoge pendingTranslationError y muestra el alert
+                    }
+                }
                 .translationTask(translationConfig) { session in
-                    await MainActor.run { isTranslating = true }
+                    await MainActor.run { translationTaskFired = true }
                     do {
                         let response = try await session.translate(item.revisionOriginal)
                         await MainActor.run {
@@ -173,48 +211,27 @@ struct ItemDetailView: View {
                             }
                             try? modelContext.save()
                             isTranslating = false
-                            translationRetryCount = 0
                             showTranslationSheet = false
                         }
                     } catch {
+                        // Cualquier error dentro de translationTask viene del framework de
+                        // Apple Translation. Mostramos siempre un mensaje claro en lugar del
+                        // error técnico del sistema, que es incomprensible para el usuario.
                         await MainActor.run {
-                            // Primer fallo: cambiar a inglés como fuente pivote y cerrar
-                            // el sheet. onChange lo volverá a presentar con la nueva config.
-                            if translationRetryCount == 0 {
-                                translationRetryCount = 1
-                                translationConfig = TranslationSession.Configuration(
-                                    source: Locale.Language(identifier: "en"),
-                                    target: Locale.Language(identifier: translatingTo)
-                                )
-                                showTranslationSheet = false
-                            } else {
-                                translationRetryCount = 0
-                                isTranslating = false
-                                let hint: String
-                                switch locale.language {
-                                case "ca":
-                                    hint = "\n\nSi l'idioma no és disponible, descarrega'l a Ajustos → General → Idioma i regió → Idiomes preferits."
-                                case "en":
-                                    hint = "\n\nIf this language isn't available, download it in Settings → General → Language & Region → Preferred Languages."
-                                default:
-                                    hint = "\n\nSi el idioma no está disponible, descárgalo en Ajustes → General → Idioma y región → Idiomas preferidos."
-                                }
-                                translationError = error.localizedDescription + hint
-                                showTranslationSheet = false
+                            isTranslating = false
+                            let langName = locale.t("translate.\(translatingTo)")
+                            switch locale.language {
+                            case "ca":
+                                pendingTranslationError = "La traducció al \(langName) no és compatible amb Apple Translation en aquesta versió d'iOS."
+                            case "en":
+                                pendingTranslationError = "Translation to \(langName) is not supported by Apple Translation in this iOS version."
+                            default:
+                                pendingTranslationError = "La traducción al \(langName) no es compatible con Apple Translation en esta versión de iOS."
                             }
+                            showTranslationSheet = false
                         }
                     }
                 }
-        }
-        // Re-presenta el sheet para el reintento con inglés como fuente pivote
-        .onChange(of: showTranslationSheet) { _, isShowing in
-            if !isShowing && translationRetryCount == 1 && !translatingTo.isEmpty {
-                Task { @MainActor in
-                    // Esperar animación de cierre antes de re-presentar
-                    try? await Task.sleep(nanoseconds: 350_000_000)
-                    showTranslationSheet = true
-                }
-            }
         }
         .alert("Error de traducción", isPresented: Binding(
             get: { translationError != nil },
@@ -486,13 +503,14 @@ struct ItemDetailView: View {
 
     private func translateButton(lang: String, label: String) -> some View {
         Button {
+            guard !isTranslating else { return }
+            isTranslating = true
             translatingTo = lang
-            translationRetryCount = 0
+            translationTaskFired = false
             translationConfig = TranslationSession.Configuration(
                 source: detectedSourceLanguage(),
                 target: Locale.Language(identifier: lang)
             )
-            // Presentar el sheet garantiza un translationTask fresco en cada tap.
             showTranslationSheet = true
         } label: {
             Text(label)
