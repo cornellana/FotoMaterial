@@ -1,0 +1,348 @@
+import Foundation
+import Combine
+
+// MARK: - Localización de la app
+
+/// Objeto observable que gestiona el idioma activo de la interfaz.
+///
+/// Almacena el idioma seleccionado en `UserDefaults` y proporciona
+/// el método `t(_:)` para obtener cadenas localizadas en cualquier parte de la app.
+///
+/// > Note: Esta clase usa `ObservableObject` en lugar de `@Observable` por
+/// > compatibilidad con el código existente. Pendiente de migrar en una próxima
+/// > revisión cuando se refactorice la capa de localización a String Catalogs.
+final class AppLocale: ObservableObject {
+
+    // MARK: Propiedades
+
+    /// Código ISO 639-1 del idioma activo ("es", "ca" o "en").
+    /// Al cambiar, se persiste en `UserDefaults` para mantener la preferencia entre sesiones.
+    @Published var language: String {
+        didSet { UserDefaults.standard.set(language, forKey: "appLanguage") }
+    }
+
+    /// Lista de idiomas disponibles en la app, con su código y nombre para mostrar en UI.
+    static let availableLanguages: [(code: String, name: String)] = [
+        ("es", "Castellano"),
+        ("ca", "Català"),
+        ("en", "English")
+    ]
+
+    // MARK: Inicializador
+
+    /// Recupera el idioma guardado o usa castellano como fallback.
+    init() {
+        self.language = UserDefaults.standard.string(forKey: "appLanguage") ?? "es"
+    }
+
+    // MARK: Traducción
+
+    /// Devuelve el texto localizado para la clave dada en el idioma activo.
+    ///
+    /// El orden de resolución es: idioma activo → inglés → la propia clave (fallback visible).
+    ///
+    /// - Parameter key: Clave de localización (p. ej. `"save"`, `"field.marca"`).
+    /// - Returns: Texto localizado, o la clave si no se encuentra en ningún idioma.
+    func t(_ key: String) -> String {
+        strings[language]?[key] ?? strings["en"]?[key] ?? key
+    }
+
+    // swiftlint:disable:next function_body_length
+    private let strings: [String: [String: String]] = [
+        "es": [
+            // Tabs
+            "tab.inventory": "Inventario",
+            "tab.groups": "Grupos",
+            "tab.add": "Añadir",
+            "tab.settings": "Ajustes",
+            // General
+            "app.title": "FotoMaterial",
+            "save": "Guardar",
+            "cancel": "Cancelar",
+            "delete": "Eliminar",
+            "edit": "Editar",
+            "next": "Siguiente",
+            "back": "Atrás",
+            "done": "Hecho",
+            "search": "Buscar",
+            "search.placeholder": "Buscar artículos...",
+            "no.items": "No hay artículos",
+            "no.items.group": "No hay artículos en este grupo",
+            "loading": "Cargando...",
+            "error": "Error",
+            "confirm": "Confirmar",
+            // Fields
+            "field.id": "ID",
+            "field.categoria": "Categoría",
+            "field.subcategoria": "Subcategoría",
+            "field.articulo": "Artículo",
+            "field.marca": "Marca",
+            "field.modelo": "Modelo",
+            "field.cantidad": "Cantidad",
+            "field.estado": "Estado comercial",
+            "field.precio.unitario": "Precio reposición/ud (€)",
+            "field.valor.total": "Valor reposición total (€)",
+            "field.factor.sm": "Factor 2ª mano",
+            "field.valor.sm": "Valor 2ª mano (€)",
+            "field.factor.seguro": "Factor seguro",
+            "field.valor.asegurado": "Valor asegurado (€)",
+            "field.prioridad": "Prioridad seguro",
+            "field.evidencia": "Evidencia PDF",
+            "field.url.amazon": "URL Amazon",
+            "field.notas": "Notas",
+            "field.revision": "Reseña",
+            "field.fecha.compra": "Fecha de compra",
+            "field.fecha.creacion": "Fecha de creación",
+            // Wizard
+            "wizard.title": "Nuevo artículo",
+            "wizard.step.item": "Artículo",
+            "wizard.step.photo": "Fotografía",
+            "wizard.step.review": "Reseña",
+            "wizard.step.details": "Detalles",
+            "wizard.step.category": "Categoría",
+            "wizard.item.hint": "Introduce el nombre del artículo para buscarlo en internet",
+            "wizard.photo.search": "Buscar en internet",
+            "wizard.photo.camera": "Cámara",
+            "wizard.photo.tap": "Navega hasta el artículo y pulsa 'Detectar imagen'",
+            "wizard.review.search": "Buscar reseñas en internet",
+            "wizard.review.tap": "Navega a una reseña y toca la barra azul para seleccionarla",
+            "wizard.price.search": "Buscar precio en Amazon",
+            "wizard.category.new": "Nueva categoría...",
+            "wizard.category.placeholder": "Nombre de la categoría",
+            // Web picker
+            "web.detect.image": "Detectar imagen",
+            "web.select.image": "✓ Seleccionar esta imagen",
+            "web.select.review": "✓ Seleccionar esta reseña",
+            "web.loading": "Cargando...",
+            // Factura
+            "field.factura": "Factura",
+            "factura.add.photo": "Añadir desde Fotos",
+            "factura.add.camera": "Fotografiar factura",
+            "factura.view": "Ver factura completa",
+            "factura.delete": "Eliminar factura",
+            "factura.none": "Sin factura adjunta",
+            // Translation
+            "translate": "Traducir",
+            "translate.to": "Traducir al",
+            "translate.original": "Original",
+            "translate.es": "Castellano",
+            "translate.ca": "Català",
+            "translate.en": "English",
+            // Export / Import
+            "export.title": "Exportar inventario",
+            "export.pdf": "Exportar PDF",
+            "export.csv": "Exportar CSV",
+            "import.title": "Importar inventario",
+            "import.csv": "Importar desde CSV/Excel",
+            "import.success": "Importación completada",
+            "import.error": "Error al importar",
+            "import.rows": "artículos importados",
+            // Settings
+            "settings.title": "Ajustes",
+            "settings.language": "Idioma",
+            "settings.import.export": "Importar / Exportar",
+            "settings.about": "Acerca de",
+            // Summary
+            "summary.total.replacement": "Valor total de reposición",
+            "summary.total.sm": "Valor total 2ª mano",
+            "summary.total.insured": "Valor total asegurado",
+            "summary.items": "artículos",
+            // PDF
+            "pdf.title": "Inventario Fotográfico Profesional",
+            "pdf.owner": "Propietario",
+            "pdf.date": "Fecha",
+            "pdf.criterion": "Criterio de valoración",
+            "pdf.criterion.value": "Precio de reposición actual (Amazon España y equivalentes)",
+        ],
+        "ca": [
+            "tab.inventory": "Inventari",
+            "tab.groups": "Grups",
+            "tab.add": "Afegir",
+            "tab.settings": "Configuració",
+            "app.title": "FotoMaterial",
+            "save": "Desar",
+            "cancel": "Cancel·lar",
+            "delete": "Eliminar",
+            "edit": "Editar",
+            "next": "Següent",
+            "back": "Enrere",
+            "done": "Fet",
+            "search": "Cercar",
+            "search.placeholder": "Cercar articles...",
+            "no.items": "No hi ha articles",
+            "no.items.group": "No hi ha articles en aquest grup",
+            "loading": "Carregant...",
+            "error": "Error",
+            "confirm": "Confirmar",
+            "field.id": "ID",
+            "field.categoria": "Categoria",
+            "field.subcategoria": "Subcategoria",
+            "field.articulo": "Article",
+            "field.marca": "Marca",
+            "field.modelo": "Model",
+            "field.cantidad": "Quantitat",
+            "field.estado": "Estat comercial",
+            "field.precio.unitario": "Preu reposició/ut (€)",
+            "field.valor.total": "Valor reposició total (€)",
+            "field.factor.sm": "Factor 2a mà",
+            "field.valor.sm": "Valor 2a mà (€)",
+            "field.factor.seguro": "Factor assegurança",
+            "field.valor.asegurado": "Valor assegurat (€)",
+            "field.prioridad": "Prioritat assegurança",
+            "field.evidencia": "Evidència PDF",
+            "field.url.amazon": "URL Amazon",
+            "field.notas": "Notes",
+            "field.revision": "Ressenya",
+            "field.fecha.compra": "Data de compra",
+            "field.fecha.creacion": "Data de creació",
+            "wizard.title": "Nou article",
+            "wizard.step.item": "Article",
+            "wizard.step.photo": "Fotografia",
+            "wizard.step.review": "Ressenya",
+            "wizard.step.details": "Detalls",
+            "wizard.step.category": "Categoria",
+            "wizard.item.hint": "Introdueix el nom de l'article per cercar-lo a internet",
+            "wizard.photo.search": "Cercar a internet",
+            "wizard.photo.camera": "Càmera",
+            "wizard.photo.tap": "Navega fins a l'article i prem 'Detectar imatge'",
+            "wizard.review.search": "Cercar ressenyes a internet",
+            "wizard.review.tap": "Navega a una ressenya i toca la barra blava per seleccionar-la",
+            "wizard.price.search": "Cercar preu a Amazon",
+            "wizard.category.new": "Nova categoria...",
+            "wizard.category.placeholder": "Nom de la categoria",
+            "web.detect.image": "Detectar imatge",
+            "web.select.image": "✓ Seleccionar aquesta imatge",
+            "web.select.review": "✓ Seleccionar aquesta ressenya",
+            "web.loading": "Carregant...",
+            // Factura
+            "field.factura": "Factura",
+            "factura.add.photo": "Afegir des de Fotos",
+            "factura.add.camera": "Fotografiar factura",
+            "factura.view": "Veure factura completa",
+            "factura.delete": "Eliminar factura",
+            "factura.none": "Sense factura adjunta",
+            "translate": "Traduir",
+            "translate.to": "Traduir al",
+            "translate.original": "Original",
+            "translate.es": "Castellà",
+            "translate.ca": "Català",
+            "translate.en": "English",
+            "export.title": "Exportar inventari",
+            "export.pdf": "Exportar PDF",
+            "export.csv": "Exportar CSV",
+            "import.title": "Importar inventari",
+            "import.csv": "Importar des de CSV/Excel",
+            "import.success": "Importació completada",
+            "import.error": "Error en importar",
+            "import.rows": "articles importats",
+            "settings.title": "Configuració",
+            "settings.language": "Idioma",
+            "settings.import.export": "Importar / Exportar",
+            "settings.about": "Quant a",
+            "summary.total.replacement": "Valor total de reposició",
+            "summary.total.sm": "Valor total 2a mà",
+            "summary.total.insured": "Valor total assegurat",
+            "summary.items": "articles",
+            "pdf.title": "Inventari Fotogràfic Professional",
+            "pdf.owner": "Propietari",
+            "pdf.date": "Data",
+            "pdf.criterion": "Criteri de valoració",
+            "pdf.criterion.value": "Preu de reposició actual (Amazon Espanya i equivalents)",
+        ],
+        "en": [
+            "tab.inventory": "Inventory",
+            "tab.groups": "Groups",
+            "tab.add": "Add",
+            "tab.settings": "Settings",
+            "app.title": "FotoMaterial",
+            "save": "Save",
+            "cancel": "Cancel",
+            "delete": "Delete",
+            "edit": "Edit",
+            "next": "Next",
+            "back": "Back",
+            "done": "Done",
+            "search": "Search",
+            "search.placeholder": "Search items...",
+            "no.items": "No items",
+            "no.items.group": "No items in this group",
+            "loading": "Loading...",
+            "error": "Error",
+            "confirm": "Confirm",
+            "field.id": "ID",
+            "field.categoria": "Category",
+            "field.subcategoria": "Subcategory",
+            "field.articulo": "Item",
+            "field.marca": "Brand",
+            "field.modelo": "Model",
+            "field.cantidad": "Quantity",
+            "field.estado": "Commercial status",
+            "field.precio.unitario": "Unit replacement price (€)",
+            "field.valor.total": "Total replacement value (€)",
+            "field.factor.sm": "Second-hand factor",
+            "field.valor.sm": "Second-hand value (€)",
+            "field.factor.seguro": "Insurance factor",
+            "field.valor.asegurado": "Insured value (€)",
+            "field.prioridad": "Insurance priority",
+            "field.evidencia": "PDF evidence",
+            "field.url.amazon": "Amazon URL",
+            "field.notas": "Notes",
+            "field.revision": "Review",
+            "field.fecha.compra": "Purchase date",
+            "field.fecha.creacion": "Creation date",
+            "wizard.title": "New item",
+            "wizard.step.item": "Item",
+            "wizard.step.photo": "Photo",
+            "wizard.step.review": "Review",
+            "wizard.step.details": "Details",
+            "wizard.step.category": "Category",
+            "wizard.item.hint": "Enter the item name to search it on the internet",
+            "wizard.photo.search": "Search online",
+            "wizard.photo.camera": "Camera",
+            "wizard.photo.tap": "Browse to the item and tap 'Detect image'",
+            "wizard.review.search": "Search reviews on the internet",
+            "wizard.review.tap": "Navigate to a review and tap the blue bar to select it",
+            "wizard.price.search": "Search price on Amazon",
+            "wizard.category.new": "New category...",
+            "wizard.category.placeholder": "Category name",
+            "web.detect.image": "Detect image",
+            "web.select.image": "✓ Select this image",
+            "web.select.review": "✓ Select this review",
+            "web.loading": "Loading...",
+            // Invoice
+            "field.factura": "Invoice",
+            "factura.add.photo": "Add from Photos",
+            "factura.add.camera": "Photograph invoice",
+            "factura.view": "View full invoice",
+            "factura.delete": "Delete invoice",
+            "factura.none": "No invoice attached",
+            "translate": "Translate",
+            "translate.to": "Translate to",
+            "translate.original": "Original",
+            "translate.es": "Spanish",
+            "translate.ca": "Catalan",
+            "translate.en": "English",
+            "export.title": "Export inventory",
+            "export.pdf": "Export PDF",
+            "export.csv": "Export CSV",
+            "import.title": "Import inventory",
+            "import.csv": "Import from CSV/Excel",
+            "import.success": "Import completed",
+            "import.error": "Import error",
+            "import.rows": "items imported",
+            "settings.title": "Settings",
+            "settings.language": "Language",
+            "settings.import.export": "Import / Export",
+            "settings.about": "About",
+            "summary.total.replacement": "Total replacement value",
+            "summary.total.sm": "Total second-hand value",
+            "summary.total.insured": "Total insured value",
+            "summary.items": "items",
+            "pdf.title": "Professional Photography Inventory",
+            "pdf.owner": "Owner",
+            "pdf.date": "Date",
+            "pdf.criterion": "Valuation criterion",
+            "pdf.criterion.value": "Current replacement price (Amazon Spain and equivalents)",
+        ]
+    ]
+}
