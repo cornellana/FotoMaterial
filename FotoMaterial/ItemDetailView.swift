@@ -426,13 +426,17 @@ struct ItemDetailView: View {
     private func translateButton(lang: String, label: String) -> some View {
         Button {
             translatingTo = lang
-            // invalidate() fuerza un nuevo ciclo de translationTask aunque
-            // source/target sean iguales a la configuración anterior.
-            translationConfig?.invalidate()
-            translationConfig = TranslationSession.Configuration(
-                source: detectedSourceLanguage(),
-                target: Locale.Language(identifier: lang)
-            )
+            // Patrón nil→nonNil: primero vaciamos la config para que SwiftUI
+            // procese el estado nil, luego en el siguiente ciclo async asignamos
+            // la nueva config. Así translationTask ve siempre una transición
+            // nil→valor y se dispara de forma fiable en cada tap.
+            translationConfig = nil
+            Task { @MainActor in
+                translationConfig = TranslationSession.Configuration(
+                    source: detectedSourceLanguage(),
+                    target: Locale.Language(identifier: lang)
+                )
+            }
         } label: {
             Text(label)
                 .font(.caption)
