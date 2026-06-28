@@ -27,6 +27,9 @@ struct ItemDetailView: View {
     // Translation state
     @State private var translationConfig: TranslationSession.Configuration?
     @State private var translatingTo = ""
+    @State private var translationTrigger = 0
+    @State private var translationError: String?
+    @State private var isTranslating = false
 
     var body: some View {
         ScrollView {
@@ -146,22 +149,44 @@ struct ItemDetailView: View {
                 selectedFacturaItem = nil
             }
         }
-        .translationTask(translationConfig) { session in
-            // translationTask corre en hilo de fondo; escrituras al modelo en MainActor.
-            // No se resetea translationConfig a nil: invalidate() en el botón gestiona
-            // el ciclo de vida de la sesión y fuerza un nuevo translationTask en cada uso.
-            do {
-                let response = try await session.translate(item.revisionOriginal)
-                await MainActor.run {
-                    switch translatingTo {
-                    case "es": item.revisionES = response.targetText
-                    case "ca": item.revisionCA = response.targetText
-                    case "en": item.revisionEN = response.targetText
-                    default: break
+        .overlay(alignment: .top) {
+            // Vista de tamaño cero que aloja translationTask. Al cambiar id(translationTrigger)
+            // SwiftUI destruye y recrea esta vista desde cero en cada solicitud de traducción,
+            // garantizando que translationTask vea siempre la transición "sin estado → config
+            // no nula" y se dispare de forma fiable, sin importar el idioma anterior.
+            Color.clear
+                .frame(width: 0, height: 0)
+                .allowsHitTesting(false)
+                .id(translationTrigger)
+                .translationTask(translationConfig) { session in
+                    await MainActor.run { isTranslating = true }
+                    do {
+                        let response = try await session.translate(item.revisionOriginal)
+                        await MainActor.run {
+                            switch translatingTo {
+                            case "es": item.revisionES = response.targetText
+                            case "ca": item.revisionCA = response.targetText
+                            case "en": item.revisionEN = response.targetText
+                            default: break
+                            }
+                            try? modelContext.save()
+                            isTranslating = false
+                        }
+                    } catch {
+                        await MainActor.run {
+                            translationError = error.localizedDescription
+                            isTranslating = false
+                        }
                     }
-                    try? modelContext.save()
                 }
-            } catch { /* fallo silencioso: idioma no disponible o sin conexión */ }
+        }
+        .alert("Error de traducción", isPresented: Binding(
+            get: { translationError != nil },
+            set: { if !$0 { translationError = nil } }
+        )) {
+            Button("OK") { translationError = nil }
+        } message: {
+            if let err = translationError { Text(err) }
         }
     }
 
@@ -426,17 +451,14 @@ struct ItemDetailView: View {
     private func translateButton(lang: String, label: String) -> some View {
         Button {
             translatingTo = lang
-            // Patrón nil→nonNil: primero vaciamos la config para que SwiftUI
-            // procese el estado nil, luego en el siguiente ciclo async asignamos
-            // la nueva config. Así translationTask ve siempre una transición
-            // nil→valor y se dispara de forma fiable en cada tap.
-            translationConfig = nil
-            Task { @MainActor in
-                translationConfig = TranslationSession.Configuration(
-                    source: detectedSourceLanguage(),
-                    target: Locale.Language(identifier: lang)
-                )
-            }
+            translationConfig = TranslationSession.Configuration(
+                source: detectedSourceLanguage(),
+                target: Locale.Language(identifier: lang)
+            )
+            // Incrementar el trigger recrea la vista auxiliar (id cambia → SwiftUI
+            // la destruye y vuelve a crear), lo que garantiza que translationTask
+            // se dispara en cada tap sin depender de transiciones nil↔nonNil.
+            translationTrigger += 1
         } label: {
             Text(label)
                 .font(.caption)
@@ -446,6 +468,7 @@ struct ItemDetailView: View {
                 .foregroundStyle(Color.accentColor)
                 .clipShape(Capsule())
         }
+        .disabled(isTranslating)
     }
 
     // MARK: - Advanced Fields (edit mode)
