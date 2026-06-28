@@ -146,17 +146,23 @@ struct ItemDetailView: View {
             }
         }
         .translationTask(translationConfig) { session in
+            // translationTask corre en hilo de fondo; todas las escrituras al modelo
+            // deben ocurrir en el MainActor para evitar que SwiftData descarte los cambios.
             do {
                 let response = try await session.translate(item.revisionOriginal)
-                switch translatingTo {
-                case "es": item.revisionES = response.targetText
-                case "ca": item.revisionCA = response.targetText
-                case "en": item.revisionEN = response.targetText
-                default: break
+                await MainActor.run {
+                    switch translatingTo {
+                    case "es": item.revisionES = response.targetText
+                    case "ca": item.revisionCA = response.targetText
+                    case "en": item.revisionEN = response.targetText
+                    default: break
+                    }
+                    try? modelContext.save()
+                    translationConfig = nil
                 }
-                try? modelContext.save()
-            } catch {}
-            translationConfig = nil
+            } catch {
+                await MainActor.run { translationConfig = nil }
+            }
         }
     }
 

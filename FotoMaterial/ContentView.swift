@@ -38,19 +38,15 @@ struct ContentView: View {
                 }
                 .tag(1)
 
-            // Placeholder para el botón "+": su selección la captura onChange
+            // Placeholder para el botón "+": su selección la captura onChange.
+            // Sin onAppear: en algunas versiones de SwiftUI, onAppear en tabs no
+            // visibles se dispara durante el arranque, lo que causaba que el wizard
+            // se presentara involuntariamente al iniciar la app.
             Color.clear
                 .tabItem {
                     Label(locale.t("tab.add"), systemImage: "plus.circle.fill")
                 }
                 .tag(2)
-                .onAppear {
-                    // Fallback por si onAppear se dispara antes que onChange
-                    if selectedTab == 2 {
-                        showAddWizard = true
-                        selectedTab = 0
-                    }
-                }
 
             SettingsView()
                 .tabItem {
