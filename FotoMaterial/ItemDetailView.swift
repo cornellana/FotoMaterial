@@ -35,6 +35,57 @@ struct ItemDetailView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
+                // Helper de traducción sin tamaño: dentro del árbol principal (no en overlay)
+                // para que translationTask pueda presentar la sheet de descarga de modelos.
+                Color.clear
+                    .frame(width: 0, height: 0)
+                    .allowsHitTesting(false)
+                    .id(translationTrigger)
+                    .translationTask(translationConfig) { session in
+                        await MainActor.run { isTranslating = true }
+                        do {
+                            let response = try await session.translate(item.revisionOriginal)
+                            await MainActor.run {
+                                switch translatingTo {
+                                case "es": item.revisionES = response.targetText
+                                case "ca": item.revisionCA = response.targetText
+                                case "en": item.revisionEN = response.targetText
+                                default: break
+                                }
+                                try? modelContext.save()
+                                isTranslating = false
+                                translationRetryCount = 0
+                            }
+                        } catch {
+                            await MainActor.run {
+                                // Primer fallo: reintentar con inglés como fuente pivote
+                                // (Apple Translation no soporta pares directos no-inglés↔no-inglés).
+                                // Segundo fallo: mostrar error con instrucciones de descarga.
+                                if translationRetryCount == 0 {
+                                    translationRetryCount = 1
+                                    translationConfig = TranslationSession.Configuration(
+                                        source: Locale.Language(identifier: "en"),
+                                        target: Locale.Language(identifier: translatingTo)
+                                    )
+                                    translationTrigger += 1
+                                } else {
+                                    translationRetryCount = 0
+                                    isTranslating = false
+                                    let hint: String
+                                    switch locale.language {
+                                    case "ca":
+                                        hint = "\n\nSi l'idioma no és disponible, descarrega'l a Ajustos → General → Idioma i regió → Idiomes preferits."
+                                    case "en":
+                                        hint = "\n\nIf this language isn't available, download it in Settings → General → Language & Region → Preferred Languages."
+                                    default:
+                                        hint = "\n\nSi el idioma no está disponible, descárgalo en Ajustes → General → Idioma y región → Idiomas preferidos."
+                                    }
+                                    translationError = error.localizedDescription + hint
+                                }
+                            }
+                        }
+                    }
+
                 // Hero image
                 heroImageSection
 
@@ -149,51 +200,6 @@ struct ItemDetailView: View {
                 }
                 selectedFacturaItem = nil
             }
-        }
-        .overlay(alignment: .top) {
-            // Vista de tamaño cero que aloja translationTask. Al cambiar id(translationTrigger)
-            // SwiftUI destruye y recrea esta vista desde cero en cada solicitud de traducción,
-            // garantizando que translationTask vea siempre la transición "sin estado → config
-            // no nula" y se dispare de forma fiable, sin importar el idioma anterior.
-            Color.clear
-                .frame(width: 0, height: 0)
-                .allowsHitTesting(false)
-                .id(translationTrigger)
-                .translationTask(translationConfig) { session in
-                    await MainActor.run { isTranslating = true }
-                    do {
-                        let response = try await session.translate(item.revisionOriginal)
-                        await MainActor.run {
-                            switch translatingTo {
-                            case "es": item.revisionES = response.targetText
-                            case "ca": item.revisionCA = response.targetText
-                            case "en": item.revisionEN = response.targetText
-                            default: break
-                            }
-                            try? modelContext.save()
-                            isTranslating = false
-                            translationRetryCount = 0
-                        }
-                    } catch {
-                        await MainActor.run {
-                            // Apple Translation no soporta pares no-inglés↔no-inglés
-                            // (p.ej. es→ca). Primer fallo: reintentar con inglés como
-                            // fuente pivote. Segundo fallo: mostrar el error al usuario.
-                            if translationRetryCount == 0 {
-                                translationRetryCount = 1
-                                translationConfig = TranslationSession.Configuration(
-                                    source: Locale.Language(identifier: "en"),
-                                    target: Locale.Language(identifier: translatingTo)
-                                )
-                                translationTrigger += 1
-                            } else {
-                                translationRetryCount = 0
-                                translationError = error.localizedDescription
-                                isTranslating = false
-                            }
-                        }
-                    }
-                }
         }
         .alert("Error de traducción", isPresented: Binding(
             get: { translationError != nil },
