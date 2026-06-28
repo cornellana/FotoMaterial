@@ -27,7 +27,7 @@ struct ItemDetailView: View {
     // Translation state
     @State private var translationConfig: TranslationSession.Configuration?
     @State private var translatingTo = ""
-    @State private var translationTrigger = 0
+    @State private var showTranslationSheet = false
     @State private var translationError: String?
     @State private var isTranslating = false
     @State private var translationRetryCount = 0
@@ -35,57 +35,6 @@ struct ItemDetailView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                // Helper de traducción sin tamaño: dentro del árbol principal (no en overlay)
-                // para que translationTask pueda presentar la sheet de descarga de modelos.
-                Color.clear
-                    .frame(width: 0, height: 0)
-                    .allowsHitTesting(false)
-                    .id(translationTrigger)
-                    .translationTask(translationConfig) { session in
-                        await MainActor.run { isTranslating = true }
-                        do {
-                            let response = try await session.translate(item.revisionOriginal)
-                            await MainActor.run {
-                                switch translatingTo {
-                                case "es": item.revisionES = response.targetText
-                                case "ca": item.revisionCA = response.targetText
-                                case "en": item.revisionEN = response.targetText
-                                default: break
-                                }
-                                try? modelContext.save()
-                                isTranslating = false
-                                translationRetryCount = 0
-                            }
-                        } catch {
-                            await MainActor.run {
-                                // Primer fallo: reintentar con inglés como fuente pivote
-                                // (Apple Translation no soporta pares directos no-inglés↔no-inglés).
-                                // Segundo fallo: mostrar error con instrucciones de descarga.
-                                if translationRetryCount == 0 {
-                                    translationRetryCount = 1
-                                    translationConfig = TranslationSession.Configuration(
-                                        source: Locale.Language(identifier: "en"),
-                                        target: Locale.Language(identifier: translatingTo)
-                                    )
-                                    translationTrigger += 1
-                                } else {
-                                    translationRetryCount = 0
-                                    isTranslating = false
-                                    let hint: String
-                                    switch locale.language {
-                                    case "ca":
-                                        hint = "\n\nSi l'idioma no és disponible, descarrega'l a Ajustos → General → Idioma i regió → Idiomes preferits."
-                                    case "en":
-                                        hint = "\n\nIf this language isn't available, download it in Settings → General → Language & Region → Preferred Languages."
-                                    default:
-                                        hint = "\n\nSi el idioma no está disponible, descárgalo en Ajustes → General → Idioma y región → Idiomas preferidos."
-                                    }
-                                    translationError = error.localizedDescription + hint
-                                }
-                            }
-                        }
-                    }
-
                 // Hero image
                 heroImageSection
 
@@ -199,6 +148,72 @@ struct ItemDetailView: View {
                     try? modelContext.save()
                 }
                 selectedFacturaItem = nil
+            }
+        }
+        // Sheet invisible que aloja translationTask. Cada presentación del sheet crea
+        // una vista fresca → translationTask siempre se dispara en "view appears".
+        // Esto es más fiable que el truco .id() porque el sheet ES una presentación
+        // genuina de SwiftUI, no una recreación interna dentro del mismo árbol.
+        .sheet(isPresented: $showTranslationSheet) {
+            Color.clear
+                .presentationDetents([.height(1)])
+                .presentationDragIndicator(.hidden)
+                .presentationBackground(.clear)
+                .interactiveDismissDisabled(true)
+                .translationTask(translationConfig) { session in
+                    await MainActor.run { isTranslating = true }
+                    do {
+                        let response = try await session.translate(item.revisionOriginal)
+                        await MainActor.run {
+                            switch translatingTo {
+                            case "es": item.revisionES = response.targetText
+                            case "ca": item.revisionCA = response.targetText
+                            case "en": item.revisionEN = response.targetText
+                            default: break
+                            }
+                            try? modelContext.save()
+                            isTranslating = false
+                            translationRetryCount = 0
+                            showTranslationSheet = false
+                        }
+                    } catch {
+                        await MainActor.run {
+                            // Primer fallo: cambiar a inglés como fuente pivote y cerrar
+                            // el sheet. onChange lo volverá a presentar con la nueva config.
+                            if translationRetryCount == 0 {
+                                translationRetryCount = 1
+                                translationConfig = TranslationSession.Configuration(
+                                    source: Locale.Language(identifier: "en"),
+                                    target: Locale.Language(identifier: translatingTo)
+                                )
+                                showTranslationSheet = false
+                            } else {
+                                translationRetryCount = 0
+                                isTranslating = false
+                                let hint: String
+                                switch locale.language {
+                                case "ca":
+                                    hint = "\n\nSi l'idioma no és disponible, descarrega'l a Ajustos → General → Idioma i regió → Idiomes preferits."
+                                case "en":
+                                    hint = "\n\nIf this language isn't available, download it in Settings → General → Language & Region → Preferred Languages."
+                                default:
+                                    hint = "\n\nSi el idioma no está disponible, descárgalo en Ajustes → General → Idioma y región → Idiomas preferidos."
+                                }
+                                translationError = error.localizedDescription + hint
+                                showTranslationSheet = false
+                            }
+                        }
+                    }
+                }
+        }
+        // Re-presenta el sheet para el reintento con inglés como fuente pivote
+        .onChange(of: showTranslationSheet) { _, isShowing in
+            if !isShowing && translationRetryCount == 1 && !translatingTo.isEmpty {
+                Task { @MainActor in
+                    // Esperar animación de cierre antes de re-presentar
+                    try? await Task.sleep(nanoseconds: 350_000_000)
+                    showTranslationSheet = true
+                }
             }
         }
         .alert("Error de traducción", isPresented: Binding(
@@ -477,10 +492,8 @@ struct ItemDetailView: View {
                 source: detectedSourceLanguage(),
                 target: Locale.Language(identifier: lang)
             )
-            // Incrementar el trigger recrea la vista auxiliar (id cambia → SwiftUI
-            // la destruye y vuelve a crear), lo que garantiza que translationTask
-            // se dispara en cada tap sin depender de transiciones nil↔nonNil.
-            translationTrigger += 1
+            // Presentar el sheet garantiza un translationTask fresco en cada tap.
+            showTranslationSheet = true
         } label: {
             Text(label)
                 .font(.caption)
