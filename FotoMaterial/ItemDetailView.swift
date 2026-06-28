@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import Translation
 import PhotosUI
+import NaturalLanguage
 
 struct ItemDetailView: View {
     @Bindable var item: InventoryItem
@@ -146,8 +147,9 @@ struct ItemDetailView: View {
             }
         }
         .translationTask(translationConfig) { session in
-            // translationTask corre en hilo de fondo; todas las escrituras al modelo
-            // deben ocurrir en el MainActor para evitar que SwiftData descarte los cambios.
+            // translationTask corre en hilo de fondo; escrituras al modelo en MainActor.
+            // No se resetea translationConfig a nil: invalidate() en el botón gestiona
+            // el ciclo de vida de la sesión y fuerza un nuevo translationTask en cada uso.
             do {
                 let response = try await session.translate(item.revisionOriginal)
                 await MainActor.run {
@@ -158,11 +160,8 @@ struct ItemDetailView: View {
                     default: break
                     }
                     try? modelContext.save()
-                    translationConfig = nil
                 }
-            } catch {
-                await MainActor.run { translationConfig = nil }
-            }
+            } catch { /* fallo silencioso: idioma no disponible o sin conexión */ }
         }
     }
 
@@ -414,11 +413,24 @@ struct ItemDetailView: View {
         }
     }
 
+    /// Detecta el idioma dominante del texto de la reseña con NLLanguageRecognizer.
+    /// Evita usar `source: nil` en TranslationSession.Configuration, que muestra
+    /// un diálogo del sistema cuyo flujo async no retorna al closure en iOS 17/18.
+    private func detectedSourceLanguage() -> Locale.Language {
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(item.revisionOriginal)
+        let tag = recognizer.dominantLanguage?.rawValue ?? "en"
+        return Locale.Language(identifier: tag)
+    }
+
     private func translateButton(lang: String, label: String) -> some View {
         Button {
             translatingTo = lang
+            // invalidate() fuerza un nuevo ciclo de translationTask aunque
+            // source/target sean iguales a la configuración anterior.
+            translationConfig?.invalidate()
             translationConfig = TranslationSession.Configuration(
-                source: nil,
+                source: detectedSourceLanguage(),
                 target: Locale.Language(identifier: lang)
             )
         } label: {
