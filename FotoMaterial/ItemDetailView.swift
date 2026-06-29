@@ -10,7 +10,11 @@ struct ItemDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
+    @Query private var allItems: [InventoryItem]
+
     @State private var isEditing = false
+    @State private var addingNewCategory = false
+    @State private var newCategoryName = ""
     @State private var showImagePicker = false
     @State private var showCameraPicker = false
     @State private var showReviewPicker = false
@@ -37,6 +41,12 @@ struct ItemDetailView: View {
     // Evita el conflicto "already presenting" si se muestra el alert durante la animación
     // de cierre del sheet.
     @State private var pendingTranslationError: String?
+
+    private var availableCategories: [String] {
+        var cats = Set(allItems.map(\.categoria).filter { !$0.isEmpty })
+        InventoryItem.defaultCategories.forEach { cats.insert($0) }
+        return cats.sorted()
+    }
 
     var body: some View {
         ScrollView {
@@ -362,6 +372,45 @@ struct ItemDetailView: View {
                 FormField(label: locale.t("field.articulo"), text: $item.articulo)
                 FormField(label: locale.t("field.marca"), text: $item.marca)
                 FormField(label: locale.t("field.modelo"), text: $item.modelo)
+                // Picker de categoria con opción de nueva categoría personalizada
+                if addingNewCategory {
+                    HStack(spacing: 8) {
+                        TextField(locale.t("wizard.category.placeholder"), text: $newCategoryName)
+                            .textFieldStyle(.roundedBorder)
+                        Button {
+                            if !newCategoryName.isEmpty {
+                                item.categoria = newCategoryName
+                                newCategoryName = ""
+                                addingNewCategory = false
+                            }
+                        } label: {
+                            Text(locale.t("confirm"))
+                        }
+                        Button {
+                            newCategoryName = ""
+                            addingNewCategory = false
+                        } label: {
+                            Image(systemName: "xmark")
+                        }
+                    }
+                } else {
+                    HStack {
+                        Picker(locale.t("field.categoria"), selection: $item.categoria) {
+                            Text("— \(locale.t("field.categoria")) —").tag("")
+                            ForEach(availableCategories, id: \.self) { cat in
+                                Text(cat).tag(cat)
+                            }
+                        }
+                        .font(.subheadline)
+                        Button {
+                            addingNewCategory = true
+                        } label: {
+                            Image(systemName: "plus.circle")
+                                .foregroundStyle(Color.accentColor)
+                        }
+                    }
+                }
+
                 FormField(label: locale.t("field.subcategoria"), text: $item.subcategoria)
 
                 HStack {
@@ -417,7 +466,7 @@ struct ItemDetailView: View {
             DetailRow(label: locale.t("field.prioridad"), value: item.prioridadSeguro)
             let df = DateFormatter(); let _ = (df.dateStyle = .medium)
             DetailRow(label: locale.t("field.fecha.compra"), value: df.string(from: item.fechaCompra))
-            if !item.notas.isEmpty { DetailRow(label: locale.t("field.notas"), value: item.notas) }
+            DetailRow(label: locale.t("field.notas"), value: item.notas.isEmpty ? "—" : item.notas)
         }
     }
 
@@ -458,7 +507,7 @@ struct ItemDetailView: View {
             } else {
                 let reviewText = currentReviewText
                 if reviewText.isEmpty {
-                    Text(locale.t("no.items"))
+                    Text(locale.t("revision.empty"))
                         .foregroundStyle(.secondary)
                         .font(.subheadline)
                 } else {

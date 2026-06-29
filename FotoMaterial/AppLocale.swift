@@ -91,6 +91,7 @@ final class AppLocale: ObservableObject {
             "field.url.amazon": "URL Amazon",
             "field.notas": "Notas",
             "field.revision": "Reseña",
+            "revision.empty": "Sin reseña",
             "field.fecha.compra": "Fecha de compra",
             "field.fecha.creacion": "Fecha de creación",
             // Wizard
@@ -193,6 +194,7 @@ final class AppLocale: ObservableObject {
             "field.url.amazon": "URL Amazon",
             "field.notas": "Notes",
             "field.revision": "Ressenya",
+            "revision.empty": "Sense ressenya",
             "field.fecha.compra": "Data de compra",
             "field.fecha.creacion": "Data de creació",
             "wizard.title": "Nou article",
@@ -288,6 +290,7 @@ final class AppLocale: ObservableObject {
             "field.url.amazon": "Amazon URL",
             "field.notas": "Notes",
             "field.revision": "Review",
+            "revision.empty": "No review",
             "field.fecha.compra": "Purchase date",
             "field.fecha.creacion": "Creation date",
             "wizard.title": "New item",
