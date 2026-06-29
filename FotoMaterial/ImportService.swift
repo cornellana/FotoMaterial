@@ -83,9 +83,11 @@ struct ImportService {
                     item.fechaCompra = date
                     item.notas = cols.count > 18 ? cols[18] : ""
                     item.revisionOriginal = cols.count > 19 ? cols[19] : ""
+                    item.numeroSerie = cols.count > 20 ? cols[20] : ""
                 } else {
                     item.notas = cols[17]
                     item.revisionOriginal = cols.count > 18 ? cols[18] : ""
+                    item.numeroSerie = cols.count > 19 ? cols[19] : ""
                 }
             }
 

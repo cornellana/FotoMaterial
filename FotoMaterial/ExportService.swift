@@ -70,10 +70,11 @@ struct ExportService {
             <td class="num"><strong>\(formatEur(catTotal))</strong></td></tr>
             """
             for item in catItems {
+                let snLabel = item.numeroSerie.isEmpty ? "" : "<br><span style='color:#888;font-size:9px'>S/N: \(htmlEscape(item.numeroSerie))</span>"
                 rowsHTML += """
                 <tr>
                 <td>\(item.itemId)</td>
-                <td>\(htmlEscape(item.articulo))</td>
+                <td>\(htmlEscape(item.articulo))\(snLabel)</td>
                 <td>\(htmlEscape(item.marca))</td>
                 <td>\(htmlEscape(item.modelo))</td>
                 <td class="num">\(item.cantidad)</td>
@@ -177,7 +178,7 @@ struct ExportService {
             "Cantidad", "EstadoComercial", "PrecioReposicionUnitario",
             "ValorReposicionTotal", "FactorSegundaMano", "ValorSegundaMano",
             "FactorSeguro", "ValorAsegurado", "PrioridadSeguro",
-            "EvidenciaPDF", "URLAmazon", "FechaCompra", "Notas", "Revision"
+            "EvidenciaPDF", "URLAmazon", "FechaCompra", "Notas", "Revision", "NumeroSerie"
         ].joined(separator: ";")
 
         let df = DateFormatter()
@@ -204,7 +205,8 @@ struct ExportService {
                 csvEscape(item.urlBusquedaAmazon),
                 df.string(from: item.fechaCompra),
                 csvEscape(item.notas),
-                csvEscape(item.revisionOriginal)
+                csvEscape(item.revisionOriginal),
+                csvEscape(item.numeroSerie)
             ].joined(separator: ";")
         }
 

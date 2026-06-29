@@ -15,6 +15,9 @@ struct ItemDetailView: View {
     @State private var isEditing = false
     @State private var addingNewCategory = false
     @State private var newCategoryName = ""
+    // Buffer de edición para el precio: evita que el campo snapee al valor antiguo
+    // al borrarlo para escribir uno nuevo (el Binding<String> reactivo provocaba eso).
+    @State private var precioText = ""
     @State private var showImagePicker = false
     @State private var showCameraPicker = false
     @State private var showReviewPicker = false
@@ -74,6 +77,13 @@ struct ItemDetailView: View {
         // Si el sheet queda activo al salir, UIKit pierde la jerarquía de presentación
         // y la lista queda completamente no interactiva hasta reiniciar la app.
         .navigationBarBackButtonHidden(showTranslationSheet)
+        .onChange(of: isEditing) { _, editing in
+            if editing {
+                precioText = item.precioReposicionUnitario == 0
+                    ? ""
+                    : String(format: "%.2f", item.precioReposicionUnitario)
+            }
+        }
         .onDisappear {
             // Red de seguridad: forzar el cierre del sheet de traducción si el usuario
             // consiguiera salir mientras estaba abierto (p.ej. con un gesto del sistema).
@@ -89,6 +99,12 @@ struct ItemDetailView: View {
                 HStack(spacing: 16) {
                     if isEditing {
                         Button(locale.t("done")) {
+                            let raw = precioText.replacingOccurrences(of: ",", with: ".")
+                            if let parsed = Double(raw) {
+                                item.precioReposicionUnitario = parsed
+                            } else if precioText.isEmpty {
+                                item.precioReposicionUnitario = 0
+                            }
                             try? modelContext.save()
                             isEditing = false
                         }
@@ -136,7 +152,10 @@ struct ItemDetailView: View {
                 query: item.articulo,
                 detectedPrice: Binding(
                     get: { nil },
-                    set: { if let v = $0 { item.precioReposicionUnitario = v } }
+                    set: { if let v = $0 {
+                        item.precioReposicionUnitario = v
+                        precioText = String(format: "%.2f", v)
+                    } }
                 )
             )
             .environmentObject(locale)
@@ -372,6 +391,7 @@ struct ItemDetailView: View {
                 FormField(label: locale.t("field.articulo"), text: $item.articulo)
                 FormField(label: locale.t("field.marca"), text: $item.marca)
                 FormField(label: locale.t("field.modelo"), text: $item.modelo)
+                FormField(label: locale.t("field.numero.serie"), text: $item.numeroSerie)
                 // Picker de categoria con opción de nueva categoría personalizada
                 if addingNewCategory {
                     HStack(spacing: 8) {
@@ -425,12 +445,8 @@ struct ItemDetailView: View {
                     .font(.subheadline)
 
                 HStack {
-                    FormField(label: locale.t("field.precio.unitario"),
-                              text: Binding(
-                                get: { item.precioReposicionUnitario == 0 ? "" : String(format: "%.2f", item.precioReposicionUnitario) },
-                                set: { item.precioReposicionUnitario = Double($0.replacingOccurrences(of: ",", with: ".")) ?? item.precioReposicionUnitario }
-                              ))
-                    .keyboardType(.decimalPad)
+                    FormField(label: locale.t("field.precio.unitario"), text: $precioText)
+                        .keyboardType(.decimalPad)
 
                     Button {
                         showPricePicker = true
@@ -458,6 +474,7 @@ struct ItemDetailView: View {
         VStack(spacing: 8) {
             DetailRow(label: locale.t("field.marca"), value: item.marca)
             DetailRow(label: locale.t("field.modelo"), value: item.modelo)
+            DetailRow(label: locale.t("field.numero.serie"), value: item.numeroSerie.isEmpty ? "—" : item.numeroSerie)
             DetailRow(label: locale.t("field.categoria"), value: item.categoria)
             DetailRow(label: locale.t("field.subcategoria"), value: item.subcategoria)
             DetailRow(label: locale.t("field.cantidad"), value: "\(item.cantidad)")

@@ -35,6 +35,9 @@ final class InventoryItem {
     /// Referencia o modelo específico (p. ej. "A7R V").
     var modelo: String
 
+    /// Número de serie del artículo, tal como figura en el propio equipo o en la factura.
+    var numeroSerie: String
+
     // MARK: Inventario
 
     /// Número de unidades de este artículo en el inventario.
@@ -136,6 +139,7 @@ final class InventoryItem {
     ///   - articulo: Nombre descriptivo.
     ///   - marca: Fabricante.
     ///   - modelo: Referencia del modelo.
+    ///   - numeroSerie: Número de serie del artículo.
     ///   - cantidad: Número de unidades (mínimo 1).
     ///   - estadoComercial: Estado del artículo (nuevo, segunda mano, etc.).
     ///   - precioReposicionUnitario: Precio de reposición por unidad en euros.
@@ -161,6 +165,7 @@ final class InventoryItem {
         articulo: String = "",
         marca: String = "",
         modelo: String = "",
+        numeroSerie: String = "",
         cantidad: Int = 1,
         estadoComercial: String = "",
         precioReposicionUnitario: Double = 0.0,
@@ -187,6 +192,7 @@ final class InventoryItem {
         self.articulo = articulo
         self.marca = marca
         self.modelo = modelo
+        self.numeroSerie = numeroSerie
         self.cantidad = cantidad
         self.estadoComercial = estadoComercial
         self.precioReposicionUnitario = precioReposicionUnitario

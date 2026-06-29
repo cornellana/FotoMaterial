@@ -16,6 +16,7 @@ struct AddItemWizardView: View {
     @State private var articulo = ""
     @State private var marca = ""
     @State private var modelo = ""
+    @State private var numeroSerie = ""
     @State private var subcategoria = ""
     @State private var imagenData: Data? = nil
     @State private var revisionOriginal = ""
@@ -185,6 +186,8 @@ struct AddItemWizardView: View {
                 FormField(label: locale.t("field.marca"), text: $marca)
                 Divider()
                 FormField(label: locale.t("field.modelo"), text: $modelo)
+                Divider()
+                FormField(label: locale.t("field.numero.serie"), text: $numeroSerie)
                 Divider()
                 FormField(label: locale.t("field.subcategoria"), text: $subcategoria)
             }
@@ -511,6 +514,7 @@ struct AddItemWizardView: View {
             articulo: articulo,
             marca: marca,
             modelo: modelo,
+            numeroSerie: numeroSerie,
             cantidad: cantidad,
             estadoComercial: estadoComercial,
             precioReposicionUnitario: precio,
