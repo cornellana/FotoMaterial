@@ -28,8 +28,25 @@ struct FotoMaterialApp: App {
                     NotificationCenter.default.post(name: .fotomaterialBackupReceived, object: url)
                 }
         }
-        .modelContainer(for: InventoryItem.self)
+        .modelContainer(Self.sharedContainer)
     }
+
+    /// Contenedor SwiftData compartido, inicializado una sola vez al arrancar.
+    ///
+    /// Usa el plan de migracion explicito (V1->V2) para stores existentes. Si el hash
+    /// del store no coincide con ningun version conocida del plan, intenta migracion
+    /// automatica estandar. Un fatalError indica corrupcion irrecuperable del store.
+    private static let sharedContainer: ModelContainer = {
+        do {
+            return try ModelContainer(for: InventoryItem.self, migrationPlan: AppMigrationPlan.self)
+        } catch {
+            do {
+                return try ModelContainer(for: InventoryItem.self)
+            } catch {
+                fatalError("No se puede abrir la base de datos de FotoMaterial: \(error)")
+            }
+        }
+    }()
 }
 
 // MARK: - Nombre de notificación
