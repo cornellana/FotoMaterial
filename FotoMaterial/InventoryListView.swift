@@ -55,7 +55,9 @@ struct InventoryListView: View {
                 contentArea
             }
             .navigationTitle(locale.t("tab.inventory"))
-            .searchable(text: $searchText, prompt: locale.t("search.placeholder"))
+            .searchable(text: $searchText,
+                        placement: .navigationBarDrawer(displayMode: .always),
+                        prompt: locale.t("search.placeholder"))
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button { showAddWizard = true } label: {
@@ -189,9 +191,16 @@ struct InventoryRow: View {
                     .font(.headline)
                     .lineLimit(1)
                 Spacer()
-                Text(formatEur(item.valorReposicionTotal))
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(formatEur(item.valorReposicionTotal))
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    if let sn = item.numeroSerie, !sn.isEmpty {
+                        Text("S/N: \(sn)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             HStack {
                 if !item.marca.isEmpty {

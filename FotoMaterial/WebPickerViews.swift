@@ -568,14 +568,40 @@ struct WebPriceView: View {
     private func scanPrices() {
         // Estrategia: .a-price .a-offscreen contiene el precio completo para lectores
         // de pantalla ("549,99 €"), a diferencia de .a-price-whole que solo da el entero.
-        // Formato es_ES: "1.549,99 €" → quitar dots (miles) → "1549,99" → coma→punto → "1549.99"
+        // El parser detecta automáticamente si el separador decimal es punto o coma según
+        // cuántos dígitos le siguen (≤2 → decimal, 3 → miles). Así funciona tanto con
+        // Amazon.es en formato europeo ("1.549,99 €") como en formato inglés ("1,549.99").
         let js = """
         (function(){
             function parse(txt){
-                var raw = txt.trim()
-                    .replace(/[^0-9,.]/g, '')
-                    .replace(/\\./g, '')
-                    .replace(',', '.');
+                var raw = txt.trim().replace(/[^0-9,.]/g, '');
+                if (!raw) return null;
+                var lastDot   = raw.lastIndexOf('.');
+                var lastComma = raw.lastIndexOf(',');
+                if (lastDot >= 0 && lastComma >= 0) {
+                    // Ambos separadores: el más a la derecha es el decimal
+                    if (lastComma > lastDot) {
+                        raw = raw.replace(/\\./g, '').replace(',', '.'); // "1.549,99"
+                    } else {
+                        raw = raw.replace(/,/g, '');                     // "1,549.99"
+                    }
+                } else if (lastComma >= 0) {
+                    // Solo coma: decimal si ≤2 dígitos tras ella, miles si 3
+                    var afterComma = raw.substring(lastComma + 1).replace(/[^0-9]/g, '');
+                    if (afterComma.length <= 2) {
+                        raw = raw.replace(',', '.');  // "32,99" → decimal
+                    } else {
+                        raw = raw.replace(/,/g, '');  // "3,200" → miles
+                    }
+                } else if (lastDot >= 0) {
+                    // Solo punto: decimal si exactamente ≤2 dígitos al final, miles si 3
+                    var afterDot = raw.substring(lastDot + 1).replace(/[^0-9]/g, '');
+                    if (afterDot.length > 2) {
+                        raw = raw.replace(/\\./g, '');  // "3.200" → miles
+                    }
+                    // "32.99" → se deja como está (punto decimal inglés)
+                }
+                raw = raw.replace(/[^0-9.]/g, '');
                 var v = parseFloat(raw);
                 return (!isNaN(v) && v > 0.5 && v < 100000) ? v : null;
             }
