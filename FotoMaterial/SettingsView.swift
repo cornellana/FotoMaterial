@@ -52,6 +52,12 @@ struct SettingsView: View {
                 aboutSection
             }
             .navigationTitle(locale.t("settings.title"))
+            .onReceive(NotificationCenter.default.publisher(for: .fotomaterialBackupReceived)) { notif in
+                // Apertura directa desde la app Archivos o AirDrop
+                if let url = notif.object as? URL {
+                    performRestore(url: url)
+                }
+            }
             .fileImporter(
                 isPresented: $showImportPicker,
                 allowedContentTypes: [
@@ -266,9 +272,18 @@ struct SettingsView: View {
         do {
             let urls = try result.get()
             guard let url = urls.first else { return }
-            _ = url.startAccessingSecurityScopedResource()
-            defer { url.stopAccessingSecurityScopedResource() }
+            performRestore(url: url)
+        } catch {
+            backupMessage = error.localizedDescription
+            showBackupAlert = true
+        }
+    }
 
+    /// Restaura un backup desde una URL (picker o apertura directa desde Archivos/AirDrop).
+    private func performRestore(url: URL) {
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+        do {
             let data    = try Data(contentsOf: url)
             let summary = try BackupService.restoreBackup(data: data, into: modelContext)
             backupMessage = "✓ \(summary.inserted) añadidos, \(summary.updated) actualizados."

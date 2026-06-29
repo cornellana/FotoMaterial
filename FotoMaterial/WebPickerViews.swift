@@ -566,14 +566,35 @@ struct WebPriceView: View {
     /// Evalúa JS para encontrar el primer precio visible en la página de Amazon.
     /// Los selectores CSS usados son específicos del DOM de Amazon.es.
     private func scanPrices() {
+        // Estrategia: .a-price .a-offscreen contiene el precio completo para lectores
+        // de pantalla ("549,99 €"), a diferencia de .a-price-whole que solo da el entero.
+        // Formato es_ES: "1.549,99 €" → quitar dots (miles) → "1549,99" → coma→punto → "1549.99"
         let js = """
         (function(){
-            var candidates = [];
-            document.querySelectorAll('.a-price-whole, .a-offscreen, [data-a-color=price]').forEach(function(el){
-                var raw = el.innerText.replace(/[^0-9,\\.]/g,'').replace(',','.');
+            function parse(txt){
+                var raw = txt.trim()
+                    .replace(/[^0-9,.]/g, '')
+                    .replace(/\\./g, '')
+                    .replace(',', '.');
                 var v = parseFloat(raw);
-                if (!isNaN(v) && v > 1 && v < 100000) candidates.push(v);
+                return (!isNaN(v) && v > 0.5 && v < 100000) ? v : null;
+            }
+            var candidates = [];
+            document.querySelectorAll('.a-price .a-offscreen').forEach(function(el){
+                var v = parse(el.innerText); if (v) candidates.push(v);
             });
+            if (candidates.length === 0) {
+                document.querySelectorAll('.a-offscreen').forEach(function(el){
+                    var v = parse(el.innerText); if (v) candidates.push(v);
+                });
+            }
+            if (candidates.length === 0) {
+                document.querySelectorAll('.a-price-whole').forEach(function(el){
+                    var frac = el.nextElementSibling;
+                    var txt = el.innerText + (frac && frac.classList.contains('a-price-fraction') ? '.' + frac.innerText : '');
+                    var v = parse(txt); if (v) candidates.push(v);
+                });
+            }
             return candidates.length > 0 ? candidates[0] : null;
         })()
         """

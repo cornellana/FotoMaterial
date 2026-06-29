@@ -60,6 +60,9 @@ struct ContentView: View {
                 selectedTab = 0
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .fotomaterialBackupReceived)) { _ in
+            selectedTab = 3  // cambiar al tab Ajustes para que SettingsView reciba la notificación
+        }
         .sheet(isPresented: $showAddWizard) {
             AddItemWizardView()
                 .environmentObject(locale)
