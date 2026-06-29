@@ -60,6 +60,20 @@ struct ItemDetailView: View {
         }
         .navigationTitle(item.articulo.isEmpty ? locale.t("field.articulo") : item.articulo)
         .navigationBarTitleDisplayMode(.inline)
+        // Bloquear la navegación atrás mientras el sheet de traducción está abierto.
+        // Si el sheet queda activo al salir, UIKit pierde la jerarquía de presentación
+        // y la lista queda completamente no interactiva hasta reiniciar la app.
+        .navigationBarBackButtonHidden(showTranslationSheet)
+        .onDisappear {
+            // Red de seguridad: forzar el cierre del sheet de traducción si el usuario
+            // consiguiera salir mientras estaba abierto (p.ej. con un gesto del sistema).
+            if showTranslationSheet {
+                showTranslationSheet = false
+                isTranslating = false
+                translationTaskFired = false
+                pendingTranslationError = nil
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack(spacing: 16) {

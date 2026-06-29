@@ -22,9 +22,6 @@ struct InventoryListView: View {
     /// Texto de búsqueda introducido por el usuario.
     @State private var searchText = ""
 
-    /// Artículo seleccionado para navegar al detalle.
-    @State private var selectedItem: InventoryItem?
-
     /// Controla si el asistente de nuevo artículo está visible.
     @State private var showAddWizard = false
 
@@ -66,7 +63,7 @@ struct InventoryListView: View {
                     }
                 }
             }
-            .navigationDestination(item: $selectedItem) { item in
+            .navigationDestination(for: InventoryItem.self) { item in
                 ItemDetailView(item: item)
                     .environmentObject(locale)
             }
@@ -112,9 +109,10 @@ struct InventoryListView: View {
         } else {
             List {
                 ForEach(filtered) { item in
-                    InventoryRow(item: item)
-                        .contentShape(Rectangle())
-                        .onTapGesture { selectedItem = item }
+                    NavigationLink(value: item) {
+                        InventoryRow(item: item)
+                    }
+                    .buttonStyle(.plain)
                 }
                 .onDelete(perform: deleteItems)
             }

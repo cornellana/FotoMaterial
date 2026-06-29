@@ -18,9 +18,6 @@ struct GroupedInventoryView: View {
     /// Todos los artículos ordenados por ID ascendente.
     @Query(sort: \InventoryItem.itemId) private var items: [InventoryItem]
 
-    /// Artículo seleccionado para navegar al detalle.
-    @State private var selectedItem: InventoryItem?
-
     /// Conjunto de categorías actualmente expandidas.
     @State private var expandedGroups: Set<String> = []
 
@@ -52,8 +49,7 @@ struct GroupedInventoryView: View {
                                 group: group,
                                 isExpanded: expandedGroups.contains(group.category),
                                 locale: locale,
-                                onToggle: { toggleGroup(group.category) },
-                                onSelect: { item in selectedItem = item }
+                                onToggle: { toggleGroup(group.category) }
                             )
                         }
                     }
@@ -61,7 +57,7 @@ struct GroupedInventoryView: View {
                 }
             }
             .navigationTitle(locale.t("tab.groups"))
-            .navigationDestination(item: $selectedItem) { item in
+            .navigationDestination(for: InventoryItem.self) { item in
                 ItemDetailView(item: item)
                     .environmentObject(locale)
             }
@@ -108,9 +104,6 @@ struct GroupSection: View {
     /// Callback para alternar la expansión de la sección.
     let onToggle: () -> Void
 
-    /// Callback que proporciona el artículo seleccionado al padre para la navegación.
-    let onSelect: (InventoryItem) -> Void
-
     /// Suma del valor de reposición de todos los artículos de este grupo.
     private var groupTotal: Double {
         group.items.reduce(0) { $0 + $1.valorReposicionTotal }
@@ -120,9 +113,10 @@ struct GroupSection: View {
         Section {
             if isExpanded {
                 ForEach(group.items) { item in
-                    InventoryRow(item: item)
-                        .contentShape(Rectangle())
-                        .onTapGesture { onSelect(item) }
+                    NavigationLink(value: item) {
+                        InventoryRow(item: item)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         } header: {
