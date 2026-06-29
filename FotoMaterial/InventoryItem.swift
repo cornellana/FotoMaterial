@@ -36,7 +36,7 @@ final class InventoryItem {
     var modelo: String
 
     /// Número de serie del artículo, tal como figura en el propio equipo o en la factura.
-    var numeroSerie: String
+    var numeroSerie: String?
 
     // MARK: Inventario
 
@@ -165,7 +165,7 @@ final class InventoryItem {
         articulo: String = "",
         marca: String = "",
         modelo: String = "",
-        numeroSerie: String = "",
+        numeroSerie: String? = nil,
         cantidad: Int = 1,
         estadoComercial: String = "",
         precioReposicionUnitario: Double = 0.0,

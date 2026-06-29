@@ -391,7 +391,9 @@ struct ItemDetailView: View {
                 FormField(label: locale.t("field.articulo"), text: $item.articulo)
                 FormField(label: locale.t("field.marca"), text: $item.marca)
                 FormField(label: locale.t("field.modelo"), text: $item.modelo)
-                FormField(label: locale.t("field.numero.serie"), text: $item.numeroSerie)
+                FormField(label: locale.t("field.numero.serie"),
+                          text: Binding(get: { item.numeroSerie ?? "" },
+                                        set: { item.numeroSerie = $0 }))
                 // Picker de categoria con opción de nueva categoría personalizada
                 if addingNewCategory {
                     HStack(spacing: 8) {
@@ -474,7 +476,7 @@ struct ItemDetailView: View {
         VStack(spacing: 8) {
             DetailRow(label: locale.t("field.marca"), value: item.marca)
             DetailRow(label: locale.t("field.modelo"), value: item.modelo)
-            DetailRow(label: locale.t("field.numero.serie"), value: item.numeroSerie.isEmpty ? "—" : item.numeroSerie)
+            DetailRow(label: locale.t("field.numero.serie"), value: item.numeroSerie ?? "—")
             DetailRow(label: locale.t("field.categoria"), value: item.categoria)
             DetailRow(label: locale.t("field.subcategoria"), value: item.subcategoria)
             DetailRow(label: locale.t("field.cantidad"), value: "\(item.cantidad)")

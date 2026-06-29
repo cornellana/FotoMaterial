@@ -70,7 +70,7 @@ struct ExportService {
             <td class="num"><strong>\(formatEur(catTotal))</strong></td></tr>
             """
             for item in catItems {
-                let snLabel = item.numeroSerie.isEmpty ? "" : "<br><span style='color:#888;font-size:9px'>S/N: \(htmlEscape(item.numeroSerie))</span>"
+                let snLabel = item.numeroSerie?.isEmpty != false ? "" : "<br><span style='color:#888;font-size:9px'>S/N: \(htmlEscape(item.numeroSerie ?? ""))</span>"
                 rowsHTML += """
                 <tr>
                 <td>\(item.itemId)</td>
@@ -206,7 +206,7 @@ struct ExportService {
                 df.string(from: item.fechaCompra),
                 csvEscape(item.notas),
                 csvEscape(item.revisionOriginal),
-                csvEscape(item.numeroSerie)
+                csvEscape(item.numeroSerie ?? "")
             ].joined(separator: ";")
         }
 

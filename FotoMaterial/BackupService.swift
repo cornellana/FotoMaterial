@@ -70,7 +70,7 @@ struct BackupService {
                 uuid: i.uuid, itemId: i.itemId,
                 categoria: i.categoria, subcategoria: i.subcategoria,
                 articulo: i.articulo, marca: i.marca, modelo: i.modelo,
-                numeroSerie: i.numeroSerie, cantidad: i.cantidad,
+                numeroSerie: i.numeroSerie ?? "", cantidad: i.cantidad,
                 estadoComercial: i.estadoComercial,
                 precioReposicionUnitario: i.precioReposicionUnitario,
                 factorSegundaMano: i.factorSegundaMano,
