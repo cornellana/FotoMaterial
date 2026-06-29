@@ -130,7 +130,7 @@ struct ImportService {
 
     // MARK: - ZIP Extraction (raw deflate via zlib)
 
-    private static func extractZIPEntries(data: Data) -> [String: Data]? {
+    static func extractZIPEntries(data: Data) -> [String: Data]? {
         var entries: [String: Data] = [:]
         let bytes = [UInt8](data)
         var offset = 0
@@ -163,12 +163,12 @@ struct ImportService {
         return entries.isEmpty ? nil : entries
     }
 
-    private static func readLE32(_ bytes: [UInt8], _ offset: Int) -> Int {
+    static func readLE32(_ bytes: [UInt8], _ offset: Int) -> Int {
         Int(bytes[offset]) | (Int(bytes[offset+1]) << 8) |
         (Int(bytes[offset+2]) << 16) | (Int(bytes[offset+3]) << 24)
     }
 
-    private static func inflateRaw(_ data: Data) -> Data? {
+    static func inflateRaw(_ data: Data) -> Data? {
         guard !data.isEmpty else { return nil }
         var stream = z_stream()
         // -15 = raw deflate; zlibVersion() returns the version string (avoids ZLIB_VERSION C macro)

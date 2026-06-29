@@ -20,30 +20,25 @@ struct SettingsView: View {
     /// Todos los artículos del inventario (para calcular los totales).
     @Query private var items: [InventoryItem]
 
-    // MARK: Estado de importación
+    // MARK: Estado de importación CSV
 
-    /// Controla si el selector de fichero de importación está activo.
     @State private var showImportPicker = false
-
-    /// Mensaje resultante de la última operación de importación.
     @State private var importMessage = ""
-
-    /// Controla si la alerta de resultado de importación está visible.
     @State private var showImportAlert = false
 
     // MARK: Estado de exportación
 
-    /// Datos binarios del fichero a compartir (PDF o CSV).
     @State private var exportData: Data?
-
-    /// Nombre del fichero de exportación con marca de tiempo.
     @State private var exportFilename = ""
-
-    /// Controla si la hoja de compartición está visible.
     @State private var showShareSheet = false
-
-    /// Indica si el PDF se está generando (operación asíncrona).
     @State private var isGeneratingPDF = false
+
+    // MARK: Estado de backup
+
+    @State private var showBackupRestorePicker = false
+    @State private var isGeneratingBackup = false
+    @State private var backupMessage = ""
+    @State private var showBackupAlert = false
 
     // MARK: Cuerpo
 
@@ -52,6 +47,7 @@ struct SettingsView: View {
             Form {
                 languageSection
                 importExportSection
+                backupSection
                 summarySection
                 aboutSection
             }
@@ -72,6 +68,15 @@ struct SettingsView: View {
                     ShareSheet(items: [data], filename: exportFilename)
                 }
             }
+            .fileImporter(
+                isPresented: $showBackupRestorePicker,
+                allowedContentTypes: [
+                    UTType(filenameExtension: "fotomaterial") ?? .data,
+                    .zip, .data
+                ],
+                allowsMultipleSelection: false,
+                onCompletion: handleBackupRestore
+            )
             .alert(
                 importMessage.hasPrefix("✓") ? locale.t("import.success") : locale.t("import.error"),
                 isPresented: $showImportAlert
@@ -79,6 +84,14 @@ struct SettingsView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(importMessage)
+            }
+            .alert(
+                backupMessage.hasPrefix("✓") ? locale.t("backup.success") : locale.t("backup.error"),
+                isPresented: $showBackupAlert
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(backupMessage)
             }
         }
     }
@@ -120,6 +133,28 @@ struct SettingsView: View {
 
             Button { exportCSV() } label: {
                 Label(locale.t("export.csv"), systemImage: "tablecells")
+            }
+        }
+    }
+
+    /// Sección de backup completo (incluye fotografías y facturas).
+    private var backupSection: some View {
+        Section(locale.t("backup.section")) {
+            Button {
+                exportBackup()
+            } label: {
+                if isGeneratingBackup {
+                    Label(locale.t("loading"), systemImage: "archivebox")
+                } else {
+                    Label(locale.t("backup.export"), systemImage: "archivebox.fill")
+                }
+            }
+            .disabled(isGeneratingBackup)
+
+            Button {
+                showBackupRestorePicker = true
+            } label: {
+                Label(locale.t("backup.import"), systemImage: "arrow.down.doc.fill")
             }
         }
     }
@@ -210,6 +245,37 @@ struct SettingsView: View {
             importMessage = error.localizedDescription
         }
         showImportAlert = true
+    }
+
+    // MARK: Backup
+
+    /// Genera el backup completo y abre la hoja de compartición.
+    private func exportBackup() {
+        isGeneratingBackup = true
+        Task { @MainActor in
+            let data           = BackupService.generateBackup(items: items)
+            exportData         = data
+            exportFilename     = "FotoMaterial_backup_\(dateStamp()).fotomaterial"
+            isGeneratingBackup = false
+            showShareSheet     = true
+        }
+    }
+
+    /// Maneja el archivo de backup seleccionado por el usuario y restaura su contenido.
+    private func handleBackupRestore(result: Result<[URL], Error>) {
+        do {
+            let urls = try result.get()
+            guard let url = urls.first else { return }
+            _ = url.startAccessingSecurityScopedResource()
+            defer { url.stopAccessingSecurityScopedResource() }
+
+            let data    = try Data(contentsOf: url)
+            let summary = try BackupService.restoreBackup(data: data, into: modelContext)
+            backupMessage = "✓ \(summary.inserted) añadidos, \(summary.updated) actualizados."
+        } catch {
+            backupMessage = error.localizedDescription
+        }
+        showBackupAlert = true
     }
 
     // MARK: Utilidades
