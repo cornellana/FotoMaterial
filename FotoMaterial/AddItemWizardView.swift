@@ -80,6 +80,12 @@ struct AddItemWizardView: View {
                     Button(locale.t("cancel")) { dismiss() }
                 }
             }
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button(locale.t("done")) { hideKeyboard() }
+                }
+            }
             .sheet(isPresented: $showImagePicker) {
                 WebImagePickerView(query: searchQuery, selectedImageData: $imagenData)
                     .environmentObject(locale)
@@ -531,6 +537,10 @@ struct AddItemWizardView: View {
         modelContext.insert(item)
         try? modelContext.save()
         dismiss()
+    }
+
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
     private func formatEur(_ v: Double) -> String {

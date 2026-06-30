@@ -276,6 +276,14 @@ struct ItemDetailView: View {
                     }
                 }
         }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button(locale.t("done")) {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
+            }
+        }
         .alert("Error de traducción", isPresented: Binding(
             get: { translationError != nil },
             set: { if !$0 { translationError = nil } }

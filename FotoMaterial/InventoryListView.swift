@@ -22,6 +22,9 @@ struct InventoryListView: View {
     /// Texto de búsqueda introducido por el usuario.
     @State private var searchText = ""
 
+    /// Controla el foco del campo de búsqueda para poder cerrarlo programáticamente.
+    @FocusState private var searchFocused: Bool
+
     /// Controla si el asistente de nuevo artículo está visible.
     @State private var showAddWizard = false
 
@@ -51,18 +54,22 @@ struct InventoryListView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 summaryBar
+                searchBar
                 Divider()
                 contentArea
             }
             .navigationTitle(locale.t("tab.inventory"))
-            .searchable(text: $searchText,
-                        placement: .navigationBarDrawer(displayMode: .always),
-                        prompt: locale.t("search.placeholder"))
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button { showAddWizard = true } label: {
                         Image(systemName: "plus")
                     }
+                }
+            }
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button(locale.t("done")) { searchFocused = false }
                 }
             }
             .navigationDestination(for: InventoryItem.self) { item in
@@ -77,6 +84,33 @@ struct InventoryListView: View {
     }
 
     // MARK: Subvistas
+
+    /// Campo de búsqueda propio (sin UISearchController) para evitar el bug de
+    /// pérdida de hit-testing en TabView + NavigationStack al volver de navegación
+    /// o al cerrar un sheet.
+    private var searchBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .font(.subheadline)
+            TextField(locale.t("search.placeholder"), text: $searchText)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .focused($searchFocused)
+            if !searchText.isEmpty {
+                Button { searchText = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(.systemGray6))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
 
     /// Barra superior con el número de artículos visibles y el valor total de reposición.
     private var summaryBar: some View {
@@ -119,6 +153,7 @@ struct InventoryListView: View {
                 .onDelete(perform: deleteItems)
             }
             .listStyle(.plain)
+            .scrollDismissesKeyboard(.immediately)
         }
     }
 
